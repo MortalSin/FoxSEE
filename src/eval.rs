@@ -380,15 +380,19 @@ pub fn eval_state(state: &State) -> i32 {
 mod tests {
     use super::*;
     use crate::{
+        def,
         state::State,
+        prgn::XorshiftPrng,
     };
 
     #[test]
     fn test_eval() {
-        let state = State::new("4k2r/pbppnppp/1bn2q2/4p3/2B5/2N1P3/PPPP1PPP/R1BQK2R b KQk - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("4k2r/pbppnppp/1bn2q2/4p3/2B5/2N1P3/PPPP1PPP/R1BQK2R b KQk - 0 1");
         assert_eq!(210, eval_state(&state));
 
-        let state = State::new("4k2r/pbppnppp/1bn5/4p3/2B5/2N1P3/PPPP1PPP/R1BQK2R b KQk - 0 1");
+        state.set_from_fen("4k2r/pbppnppp/1bn5/4p3/2B5/2N1P3/PPPP1PPP/R1BQK2R b KQk - 0 1");
         assert_eq!(1215, eval_state(&state));
     }
 }

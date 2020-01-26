@@ -4,11 +4,14 @@ mod mov_gen;
 mod mov_tbl;
 mod search;
 mod state;
+mod hash_tbl;
+mod prgn;
 mod uci;
 mod util;
 
 use state::State;
 use search::SearchEngine;
+use prgn::XorshiftPrng;
 use uci::{UciProcessResult, Rawmov};
 
 use std::io::{self, prelude::*};
@@ -16,15 +19,16 @@ use std::io::{self, prelude::*};
 const FEN_START_POS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
-    let mut search_engine = SearchEngine::new();
-    let mut state = State::new(FEN_START_POS);
+    let mut search_engine = SearchEngine::new(2097152);
+    let mut prgn = XorshiftPrng::new();
+    let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
 
     loop {
         let input_cmd = read_gui_input();
         let uci_cmd_process_result = uci::process_uci_cmd(input_cmd.trim());
         match uci_cmd_process_result {
             UciProcessResult::Position(mov_list) => {
-                state = State::new(FEN_START_POS);
+                state.set_from_fen(FEN_START_POS);
 
                 if mov_list.is_empty() {
                     continue

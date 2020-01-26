@@ -1,9 +1,10 @@
 pub static ENGINE_NAME: &str = "FoxSEE";
-pub static VERSION: &str = "0.2.5";
+pub static VERSION: &str = "0.3";
 pub static AUTHOR: &str = "Zixiao Han";
 
 pub const BOARD_SIZE: usize = 120;
 pub const DIM_SIZE: usize = 8;
+pub const PIECE_CODE_RANGE: usize = 131;
 
 pub const MOV_REG: u8 = 1;
 pub const MOV_PROMO: u8 = 2;

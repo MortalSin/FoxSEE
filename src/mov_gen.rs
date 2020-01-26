@@ -1470,11 +1470,14 @@ mod tests {
     use super::*;
     use crate::{
         state::State,
+        prgn::XorshiftPrng,
         util,
     };
 
     fn gen_reg_movs_test_helper(fen: &str, expected_cap_list: Vec<&str>, expected_non_cap_list: Vec<&str>, debug: bool) {
-        let state = State::new(fen);
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen(fen);
 
         let (cap_list, non_cap_list) = MoveGenerator::new().gen_reg_mov_list(&state);
 
@@ -1509,7 +1512,9 @@ mod tests {
     }
 
     fn gen_cas_movs_test_helper(fen: &str, expected_cas_mov_list: Vec<&str>, debug: bool) {
-        let state = State::new(fen);
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen(fen);
 
         let cas_list = MoveGenerator::new().gen_castle_mov_list(&state);
 
@@ -1657,7 +1662,9 @@ mod tests {
 
     #[test]
     fn test_attack_check() {
-        let state = State::new("3rr3/2pq2pk/p2p1pnp/8/2QBPP2/1P6/P5PP/4RRK1 b - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("3rr3/2pq2pk/p2p1pnp/8/2QBPP2/1P6/P5PP/4RRK1 b - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(mov_generator.is_under_attack(&state, util::map_sqr_notation_to_index("f6")));
@@ -1667,7 +1674,9 @@ mod tests {
 
     #[test]
     fn test_king_check_1() {
-        let state = State::new("3rr1k1/2pq2p1/p2p1pnp/8/2BBPP2/1PQ5/P5PP/4RRK1 b - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("3rr1k1/2pq2p1/p2p1pnp/8/2BBPP2/1PQ5/P5PP/4RRK1 b - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(mov_generator.is_in_check(&state));
@@ -1675,7 +1684,9 @@ mod tests {
 
     #[test]
     fn test_king_check_2() {
-        let state = State::new("3rr1k1/2pq2p1/p2pNpnp/8/2QBPP2/1P1B4/P5PP/4RRK1 b - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("3rr1k1/2pq2p1/p2pNpnp/8/2QBPP2/1P1B4/P5PP/4RRK1 b - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(!mov_generator.is_in_check(&state));
@@ -1683,7 +1694,9 @@ mod tests {
 
     #[test]
     fn test_king_check_3() {
-        let state = State::new("r2qnkn1/p2b2br/1p1p1pp1/2pPpp2/1PP1P2K/PRNBB3/3QNPPP/5R2 w - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r2qnkn1/p2b2br/1p1p1pp1/2pPpp2/1PP1P2K/PRNBB3/3QNPPP/5R2 w - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(mov_generator.is_in_check(&state));
@@ -1691,7 +1704,9 @@ mod tests {
 
     #[test]
     fn test_king_check_4() {
-        let state = State::new("r2q1kn1/p2b1rb1/1p1p1pp1/2pPpn2/1PP1P3/PRNBB1K1/3QNPPP/5R2 w - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r2q1kn1/p2b1rb1/1p1p1pp1/2pPpn2/1PP1P3/PRNBB1K1/3QNPPP/5R2 w - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(mov_generator.is_in_check(&state));
@@ -1699,7 +1714,9 @@ mod tests {
 
     #[test]
     fn test_king_check_5() {
-        let state = State::new("r2q1k2/p2bPrbR/1p1p1ppn/2pPpn2/1PP1P3/P1NBB3/3QNPPP/5RK1 b - - 0 1");
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r2q1k2/p2bPrbR/1p1p1ppn/2pPpn2/1PP1P3/P1NBB3/3QNPPP/5RK1 b - - 0 1");
         let mov_generator = MoveGenerator::new();
 
         assert!(mov_generator.is_in_check(&state));

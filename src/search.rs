@@ -1,6 +1,7 @@
 use crate::{
     def,
     eval,
+    hash_tbl::{HashTable, LookupResult, HASH_TYPE_ALPHA, HASH_TYPE_BETA},
     mov_gen::MoveGenerator,
     state::State,
     util,
@@ -23,10 +24,12 @@ pub enum SearchMovResult {
 }
 
 use SearchMovResult::*;
+use LookupResult::*;
 use std::time::Instant;
 
 pub struct SearchEngine {
     mov_generator: MoveGenerator,
+    hash_table: HashTable,
     w_history_table: [[u64; def::BOARD_SIZE]; def::BOARD_SIZE],
     b_history_table: [[u64; def::BOARD_SIZE]; def::BOARD_SIZE],
     refutation_table: [((i32, u32), (i32, u32)); REFUTATION_TABLE_SIZE],
@@ -39,9 +42,10 @@ pub struct SearchEngine {
 }
 
 impl SearchEngine {
-    pub fn new() -> Self {
+    pub fn new(hash_size: usize) -> Self {
         SearchEngine {
             mov_generator: MoveGenerator::new(),
+            hash_table: HashTable::new(hash_size),
             w_history_table: [[0; def::BOARD_SIZE]; def::BOARD_SIZE],
             b_history_table: [[0; def::BOARD_SIZE]; def::BOARD_SIZE],
             refutation_table: [((0, 0), (0, 0)); REFUTATION_TABLE_SIZE],
@@ -230,7 +234,7 @@ impl SearchEngine {
             return 0
         }
 
-        if ply > 0 && state.is_draw() {
+        if ply <= 2 && state.is_draw() {
             return 0
         }
 
@@ -278,6 +282,45 @@ impl SearchEngine {
             }
         }
 
+        let mut hash_mov = 0;
+        match self.hash_table.get(state.hash_key, state.player, depth, state.cas_rights, state.enp_square) {
+            Match(flag, score, mov) => {
+                hash_mov = mov;
+
+                if score.abs() < eval::TERM_VAL {
+                    match flag {
+                        HASH_TYPE_ALPHA => {
+                            if score * player_sign <= alpha * player_sign {
+                                return alpha
+                            }
+                        },
+                        HASH_TYPE_BETA => {
+                            if score * player_sign >= beta * player_sign {
+                                return beta
+                            }
+                        },
+                        _ => (),
+                    }
+                }
+            },
+            MovOnly(mov) => {
+                hash_mov = mov;
+            },
+            NoMatch => (),
+        }
+
+        if hash_mov != 0 && hash_mov != pv_mov {
+            let (_from, to, _tp, _promo) = util::decode_u32_mov(hash_mov);
+
+            match self.search_mov(state, false, pv_table, hash_mov, state.squares[to] != 0, alpha, beta, depth, depth_extend_count, ply, player_sign, node_count, seldepth) {
+                Beta(score) => return score,
+                Alpha(score) => {
+                    alpha = score;
+                },
+                Noop => (),
+            }
+        }
+
         let (cap_list, non_cap_list) = self.mov_generator.gen_reg_mov_list(state);
 
         let mut scored_capture_list = Vec::new();
@@ -286,7 +329,7 @@ impl SearchEngine {
         let (_last_from, last_to, _last_moving_piece, last_captured) = util::decode_u32_mov(*(state.history_mov_stack.last().unwrap()));
 
         for cap in cap_list {
-            if cap == pv_mov {
+            if cap == pv_mov || cap == hash_mov {
                 continue
             }
 
@@ -330,11 +373,11 @@ impl SearchEngine {
         let mut refutation_mov = 0;
         let (_refutation_score, saved_refutation_mov) = self.refutation_table[ply as usize].0;
 
-        if saved_refutation_mov != 0 && non_cap_list.contains(&saved_refutation_mov) {
+        if saved_refutation_mov != 0 && saved_refutation_mov != hash_mov && non_cap_list.contains(&saved_refutation_mov) {
             refutation_mov = saved_refutation_mov;
         } else {
             let (_refutation_score, saved_refutation_mov) = self.refutation_table[ply as usize].1;
-            if saved_refutation_mov != 0 && non_cap_list.contains(&saved_refutation_mov) {
+            if saved_refutation_mov != 0 && saved_refutation_mov != hash_mov && non_cap_list.contains(&saved_refutation_mov) {
                 refutation_mov = saved_refutation_mov;
             }
         }
@@ -352,7 +395,7 @@ impl SearchEngine {
         if (player_sign > 0 && (state.cas_rights & 0b1100 != 0)) || (player_sign < 0 && (state.cas_rights & 0b0011 != 0)) {
             let castle_list = self.mov_generator.gen_castle_mov_list(state);
             for cas_mov in castle_list {
-                if cas_mov == pv_mov || cas_mov == refutation_mov {
+                if cas_mov == pv_mov || cas_mov == hash_mov || cas_mov == refutation_mov {
                     continue
                 }
 
@@ -369,7 +412,7 @@ impl SearchEngine {
         let mut scored_non_cap_list = Vec::new();
 
         for non_cap in non_cap_list {
-            if non_cap == pv_mov || non_cap == refutation_mov {
+            if non_cap == pv_mov || non_cap == hash_mov || non_cap == refutation_mov {
                 continue
             }
 
@@ -474,6 +517,7 @@ impl SearchEngine {
                 }
             }
 
+            self.hash_table.set(state.hash_key, state.player, depth, state.cas_rights, state.enp_square, HASH_TYPE_BETA, score, mov);
             return Beta(score)
         }
 
@@ -489,6 +533,7 @@ impl SearchEngine {
                 }
             }
 
+            self.hash_table.set(state.hash_key, state.player, depth, state.cas_rights, state.enp_square, HASH_TYPE_ALPHA, score, mov);
             return Alpha(score)
         }
 
@@ -685,13 +730,16 @@ mod tests {
     use super::*;
     use crate::{
         state::State,
+        prgn::XorshiftPrng,
         util,
     };
 
     #[test]
     fn test_see_1() {
-        let state = State::new("4q1kr/ppn1rp1p/n1p1PB2/5P2/2B1Q2P/2N3p1/PPP1b1P1/4R2K b - - 1 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("4q1kr/ppn1rp1p/n1p1PB2/5P2/2B1Q2P/2N3p1/PPP1b1P1/4R2K b - - 1 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(145, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BN));
         assert_eq!(-100, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BP));
@@ -700,8 +748,10 @@ mod tests {
 
     #[test]
     fn test_see_2() {
-        let state = State::new("r5kr/1b1pR1p1/ppq1N2p/5P1n/3Q4/B6B/P5PP/5RK1 w - - 1 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r5kr/1b1pR1p1/ppq1N2p/5P1n/3Q4/B6B/P5PP/5RK1 w - - 1 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(-505, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WQ));
         assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WN));
@@ -710,8 +760,10 @@ mod tests {
 
     #[test]
     fn test_see_3() {
-        let state = State::new("r2q1kn1/p2b1rb1/1p1p1pp1/2pPp3/1PP1Pn2/PRNBB1K1/3QNPPP/5R2 w - - 0 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r2q1kn1/p2b1rb1/1p1p1pp1/2pPp3/1PP1Pn2/PRNBB1K1/3QNPPP/5R2 w - - 0 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WN));
         assert_eq!(95, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WB));
@@ -720,56 +772,70 @@ mod tests {
 
     #[test]
     fn test_see_4() {
-        let state = State::new("r4kn1/p2bprb1/Bp1p1ppP/2pP4/1PP1Pn2/PRNB2K1/2QN1PPq/5R2 w - - 0 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r4kn1/p2bprb1/Bp1p1ppP/2pP4/1PP1Pn2/PRNB2K1/2QN1PPq/5R2 w - - 0 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(-19655, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WK));
     }
 
     #[test]
     fn test_see_5() {
-        let state = State::new("rn1qkbnr/pppbpppp/8/3p4/4P3/5Q2/PPPP1PPP/RNB1KBNR w KQkq - 2 3");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("rn1qkbnr/pppbpppp/8/3p4/4P3/5Q2/PPPP1PPP/RNB1KBNR w KQkq - 2 3");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("d5"), def::WP));
     }
 
     #[test]
     fn test_q_search_1() {
-        let mut state = State::new("r5kr/1b1pR1p1/p1q1N2p/5P1n/3Q4/B7/P5PP/5RK1 w - - 1 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r5kr/1b1pR1p1/p1q1N2p/5P1n/3Q4/B7/P5PP/5RK1 w - - 1 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(85, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
     fn test_q_search_2() {
-        let mut state = State::new("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(0, search_engine.q_search(&mut state, 20000, -20000, 0, &mut 0));
     }
 
     #[test]
     fn test_q_search_3() {
-        let mut state = State::new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(0, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
     fn test_q_search_4() {
-        let mut state = State::new("2k5/pp2b3/1np1p3/2NpP2p/3P2p1/2PN4/PP4PP/5q1K w - - 8 27");
-        let search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("2k5/pp2b3/1np1p3/2NpP2p/3P2p1/2PN4/PP4PP/5q1K w - - 8 27");
+        let search_engine = SearchEngine::new(1048576);
 
         assert_eq!(-900, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
     fn test_search_puzzle_1() {
-        let mut state = State::new("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -780,8 +846,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_2() {
-        let mut state = State::new("r3r1k1/ppqb1ppp/8/4p1NQ/8/2P5/PP3PPP/R3R1K1 b - - 0 1");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r3r1k1/ppqb1ppp/8/4p1NQ/8/2P5/PP3PPP/R3R1K1 b - - 0 1");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -792,8 +860,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_3() {
-        let mut state = State::new("8/1k3ppp/8/5PPP/8/8/1K6/8 w - - 9 83");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("8/1k3ppp/8/5PPP/8/8/1K6/8 w - - 9 83");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 15500);
 
@@ -804,8 +874,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_4() {
-        let mut state = State::new("8/8/1r2b2p/8/8/2p5/2kR4/K7 b - - 3 56");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("8/8/1r2b2p/8/8/2p5/2kR4/K7 b - - 3 56");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -816,8 +888,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_5() {
-        let mut state = State::new("4r1k1/pp1Q1ppp/3B4/q2p4/5P1P/P3PbPK/1P1r4/2R5 b - - 3 5");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("4r1k1/pp1Q1ppp/3B4/q2p4/5P1P/P3PbPK/1P1r4/2R5 b - - 3 5");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -828,8 +902,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_6() {
-        let mut state = State::new("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r5rk/2p1Nppp/3p3P/pp2p1P1/4P3/2qnPQK1/8/R6R w - - 1 0");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -840,8 +916,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_7() {
-        let mut state = State::new("r1b3kr/3pR1p1/ppq4p/5P2/4Q3/B7/P5PP/5RK1 w - - 1 0");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("r1b3kr/3pR1p1/ppq4p/5P2/4Q3/B7/P5PP/5RK1 w - - 1 0");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -852,8 +930,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_8() {
-        let mut state = State::new("1r2k1r1/pbppnp1p/1b3P2/8/Q7/B1PB1q2/P4PPP/3R2K1 w - - 1 0");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("1r2k1r1/pbppnp1p/1b3P2/8/Q7/B1PB1q2/P4PPP/3R2K1 w - - 1 0");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -864,8 +944,10 @@ mod tests {
 
     #[test]
     fn test_search_puzzle_9() {
-        let mut state = State::new("8/8/8/5p1p/3k1P1P/5K2/8/8 b - - 1 59");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("8/8/8/5p1p/3k1P1P/5K2/8/8 b - - 1 59");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -876,8 +958,10 @@ mod tests {
 
     #[test]
     fn test_search_endgame_1() {
-        let mut state = State::new("8/2k5/2pR4/1pPp4/p7/P1P2P2/1P6/5K2 w - - 5 52");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("8/2k5/2pR4/1pPp4/p7/P1P2P2/1P6/5K2 w - - 5 52");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
@@ -888,8 +972,10 @@ mod tests {
 
     #[test]
     fn test_search_endgame_2() {
-        let mut state = State::new("5rk1/2PQpppp/5b2/p7/8/4P1P1/2q2P1P/3R2K1 w - - 0 1");
-        let mut search_engine = SearchEngine::new();
+        let mut prgn = XorshiftPrng::new();
+        let mut state = State::new(prgn.create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE));
+        state.set_from_fen("5rk1/2PQpppp/5b2/p7/8/4P1P1/2q2P1P/3R2K1 w - - 0 1");
+        let mut search_engine = SearchEngine::new(1048576);
 
         let best_mov = search_engine.search(&mut state, 5500);
 
