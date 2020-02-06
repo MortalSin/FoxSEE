@@ -19,6 +19,7 @@ static KING_THREAT_VAL: i32 = 15;
 
 static ADVANCE_VAL: i32 = 150;
 static DRAW_PEN: i32 = 100;
+static Q_THREAT_PEN: i32 = 50;
 
 static PASS_PAWN_VAL: i32 = 15;
 static DUP_PAWN_PEN: i32 = 10;
@@ -332,12 +333,20 @@ pub fn eval_state(state: &State) -> i32 {
                 let file_mask = file_masks[index];
                 if file_mask & bitboard.b_rook != 0 && file_mask & bitboard.b_pawn == 0 {
                     wk_safety_score -= KING_THREAT_VAL;
+
+                    if file_mask & bitboard.w_pawn == 0 {
+                        wk_safety_score -= KING_THREAT_VAL;
+                    }
                 }
 
                 if index > 0 && def::is_index_valid(index - 1) {
                     let file_mask = file_masks[index - 1];
                     if file_mask & bitboard.b_rook != 0 && file_mask & bitboard.b_pawn == 0 && file_mask & bitboard.w_rook == 0 {
                         wk_safety_score -= KING_THREAT_VAL;
+
+                        if file_mask & bitboard.w_pawn == 0 {
+                            wk_safety_score -= KING_THREAT_VAL;
+                        }
                     }
                 }
 
@@ -345,6 +354,10 @@ pub fn eval_state(state: &State) -> i32 {
                     let file_mask = file_masks[index + 1];
                     if file_mask & bitboard.b_rook != 0 && file_mask & bitboard.b_pawn == 0 && file_mask & bitboard.w_rook == 0 {
                         wk_safety_score -= KING_THREAT_VAL;
+
+                        if file_mask & bitboard.w_pawn == 0 {
+                            wk_safety_score -= KING_THREAT_VAL;
+                        }
                     }
                 }
             },
@@ -368,12 +381,20 @@ pub fn eval_state(state: &State) -> i32 {
                 let file_mask = file_masks[index];
                 if file_mask & bitboard.w_rook != 0 && file_mask & bitboard.w_pawn == 0 {
                     bk_safety_score += KING_THREAT_VAL;
+
+                    if file_mask & bitboard.b_pawn == 0 {
+                        wk_safety_score += KING_THREAT_VAL;
+                    }
                 }
 
                 if index > 0 && def::is_index_valid(index - 1) {
                     let file_mask = file_masks[index - 1];
                     if file_mask & bitboard.w_rook != 0 && file_mask & bitboard.w_pawn == 0 && file_mask & bitboard.b_rook == 0 {
                         bk_safety_score += KING_THREAT_VAL;
+
+                        if file_mask & bitboard.b_pawn == 0 {
+                            wk_safety_score += KING_THREAT_VAL;
+                        }
                     }
                 }
 
@@ -381,6 +402,10 @@ pub fn eval_state(state: &State) -> i32 {
                     let file_mask = file_masks[index + 1];
                     if file_mask & bitboard.w_rook != 0 && file_mask & bitboard.w_pawn == 0 && file_mask & bitboard.b_rook == 0 {
                         bk_safety_score += KING_THREAT_VAL;
+
+                        if file_mask & bitboard.b_pawn == 0 {
+                            wk_safety_score += KING_THREAT_VAL;
+                        }
                     }
                 }
             },
@@ -410,10 +435,18 @@ pub fn eval_state(state: &State) -> i32 {
 
     if bq_count > 0 {
         midgame_score += wk_safety_score;
+
+        if wk_safety_score < 0 && base_score > ADVANCE_VAL {
+            midgame_score -= Q_THREAT_PEN;
+        }
     }
 
     if wq_count > 0 {
         midgame_score += bk_safety_score;
+
+        if bk_safety_score > 0 && base_score < -ADVANCE_VAL {
+            midgame_score += Q_THREAT_PEN;
+        }
     }
 
     base_score + midgame_score
