@@ -122,7 +122,7 @@ impl <'state> State<'state> {
             def::MOV_CAS => self.do_cas_mov(to),
             def::MOV_ENP => self.do_enp_mov(from, to),
             def::MOV_CR_ENP => self.do_cr_enp_mov(from, to),
-            _ => panic!("invalid mov type {}", mov_type),
+            _ => (),
         }
 
         self.player = def::get_opposite_player(self.player);
@@ -146,7 +146,7 @@ impl <'state> State<'state> {
             def::MOV_CAS => self.undo_cas_mov(to),
             def::MOV_ENP => self.undo_enp_mov(from, to),
             def::MOV_CR_ENP => self.undo_cr_enp_mov(from, to),
-            _ => panic!("invalid mov type {}", mov_type),
+            _ => (),
         }
     }
 
