@@ -19,7 +19,6 @@ static KING_CASTLED_VAL: i32 = 20;
 
 static ADVANCE_VAL: i32 = 150;
 static DRAW_PEN: i32 = 100;
-static Q_THREAT_PEN: i32 = 50;
 
 static PASS_PAWN_VAL: i32 = 15;
 static DUP_PAWN_PEN: i32 = 10;
@@ -426,10 +425,6 @@ pub fn eval_state(state: &State) -> i32 {
         if state.w_castled {
             midgame_score += KING_CASTLED_VAL;
         }
-
-        if wk_safety_score < 0 && base_score > ADVANCE_VAL {
-            midgame_score -= Q_THREAT_PEN;
-        }
     }
 
     if wq_count > 0 {
@@ -437,10 +432,6 @@ pub fn eval_state(state: &State) -> i32 {
 
         if state.b_castled {
             midgame_score -= KING_CASTLED_VAL;
-        }
-
-        if bk_safety_score > 0 && base_score < -ADVANCE_VAL {
-            midgame_score += Q_THREAT_PEN;
         }
     }
 
