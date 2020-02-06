@@ -194,7 +194,7 @@ impl SearchEngine {
             return 0
         }
 
-        if state.is_draw(ply) {
+        if state.is_draw() {
             return 0
         }
 

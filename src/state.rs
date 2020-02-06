@@ -12,7 +12,6 @@ const FEN_CAS_RIGHTS_INDEX: usize = 2;
 const FEN_ENP_SQR_INDEX: usize = 3;
 const FEN_HALF_MOV_INDEX: usize = 4;
 
-const LAST_DUP_POS_INDEX: usize = 4;
 const MIN_POS_COUNT_FOR_REP: usize = 6;
 
 pub struct State<'state> {
@@ -79,16 +78,12 @@ impl <'state> State<'state> {
         }
     }
 
-    pub fn is_draw(&self, ply: u8) -> bool {
+    pub fn is_draw(&self) -> bool {
         let history_len = self.history_pos_stack.len();
         let check_range = history_len.min(self.non_cap_mov_count as usize);
 
         if check_range < MIN_POS_COUNT_FOR_REP {
             return false
-        }
-
-        if ply > 2 && self.history_pos_stack[history_len - LAST_DUP_POS_INDEX] == self.hash_key {
-            return true
         }
 
         let mut dup_count = 0;
