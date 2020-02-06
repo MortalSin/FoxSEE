@@ -251,11 +251,10 @@ pub fn eval_state(state: &State) -> i32 {
                 }
 
                 let file_mask = file_masks[index];
-                if file_mask & bitboard.w_pawn == 0 {
+                if file_mask & bitboard.w_all == 0 {
                     midgame_score += ROOK_OPEN_LINE_VAL;
 
-                    if file_mask & bitboard.b_pawn == 0
-                    && file_mask & bitboard.b_rook == 0 {
+                    if file_mask & bitboard.b_all == 0 {
                         midgame_score += ROOK_OPEN_LINE_VAL;
                     }
                 }
@@ -272,11 +271,10 @@ pub fn eval_state(state: &State) -> i32 {
                 }
 
                 let file_mask = file_masks[index];
-                if file_mask & bitboard.b_pawn == 0 {
+                if file_mask & bitboard.b_all == 0 {
                     midgame_score -= ROOK_OPEN_LINE_VAL;
 
-                    if file_mask & bitboard.w_pawn == 0
-                    && file_mask & bitboard.w_rook == 0 {
+                    if file_mask & bitboard.w_all == 0 {
                         midgame_score -= ROOK_OPEN_LINE_VAL;
                     }
                 }
@@ -503,7 +501,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("rnbqr1k1/pppp1ppp/5nb1/8/8/5NB1/PPPP1PPP/RNBQ1RK1 w Qq - 0 1", &zob_keys, &bitmask);
-        assert_eq!(-40, eval_state(&state));
+        assert_eq!(0, eval_state(&state));
     }
 
     #[test]
@@ -521,7 +519,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("rnbqr1k1/pppppppp/5nb1/8/8/5NB1/PPPP1PPP/RNBQR1K1 w Qq - 0 1", &zob_keys, &bitmask);
-        assert_eq!(-80, eval_state(&state));
+        assert_eq!(-100, eval_state(&state));
     }
 
     #[test]
