@@ -14,7 +14,6 @@ static P_VAL: i32 = 100;
 
 static KING_PROTECTED_VAL: i32 = 50;
 static KING_COVERED_VAL: i32 = 30;
-static KING_SAFE_SPOT_VAL: i32 = 30;
 static KING_THREAT_VAL: i32 = 15;
 static KING_CASTLED_VAL: i32 = 20;
 
@@ -34,9 +33,6 @@ static PREF_SQR_VAL: i32 = 20;
 
 const W_FIFTH_RANK: usize = 63;
 const B_FIFTH_RANK: usize = 56;
-
-static WK_SAFE_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_00000000_11000011_11000111;
-static BK_SAFE_MASK: u64 = 0b11000111_11000011_00000000_00000000_00000000_00000000_00000000_00000000;
 
 static WQ_COMF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_01111110_00111100_00000000;
 static BQ_COMF_MASK: u64 = 0b00000000_00111100_01111110_00000000_00000000_00000000_00000000_00000000;
@@ -321,12 +317,8 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if (wk_protect_masks[index] & bitboard.w_pawn).count_ones() < 2 {
                     wk_safety_score -= KING_PROTECTED_VAL;
-                } else if index_mask & WK_SAFE_MASK != 0 {
-                    wk_safety_score += KING_SAFE_SPOT_VAL;
-
-                    if file_masks[index] & bitboard.w_pawn != 0 {
-                        wk_safety_score += KING_COVERED_VAL;
-                    }
+                } else if file_masks[index] & bitboard.w_pawn != 0 {
+                    wk_safety_score += KING_COVERED_VAL;
                 }
 
                 let file_mask = file_masks[index];
@@ -369,12 +361,8 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if (bk_protect_masks[index] & bitboard.b_pawn).count_ones() < 2 {
                     bk_safety_score += KING_PROTECTED_VAL;
-                } else if index_mask & BK_SAFE_MASK != 0 {
-                    bk_safety_score -= KING_SAFE_SPOT_VAL;
-
-                    if file_masks[index] & bitboard.b_pawn != 0 {
-                        bk_safety_score -= KING_COVERED_VAL;
-                    }
+                } else if file_masks[index] & bitboard.b_pawn != 0 {
+                    bk_safety_score -= KING_COVERED_VAL;
                 }
 
                 let file_mask = file_masks[index];
@@ -483,7 +471,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("4k2r/pbppnppp/1bn5/4p3/2B5/2N1P3/PPPP1PPP/R1BQK2R b KQk - 0 1", &zob_keys, &bitmask);
-        assert_eq!(1275, eval_state(&state));
+        assert_eq!(1245, eval_state(&state));
     }
 
     #[test]
