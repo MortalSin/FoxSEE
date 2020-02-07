@@ -133,7 +133,13 @@ impl SearchEngine {
             for cap in cap_list {
                 let (from, to, _tp, promo) = util::decode_u32_mov(cap);
 
-                let see_score = self.see(state, to, squares[from]) * player_sign + eval::val_of(promo);
+                let initial_attacker = if promo == 0 {
+                    squares[from]
+                } else {
+                    promo
+                };
+
+                let see_score = self.see(state, to, initial_attacker) * player_sign;
                 self.root_node_mov_list.push((see_score, cap));
             }
 
@@ -259,7 +265,18 @@ impl SearchEngine {
             }
 
             let exchange_score = eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo);
-            scored_capture_list.push((exchange_score, cap));
+            if exchange_score > 0 {
+                scored_capture_list.push((exchange_score, cap));
+            } else {
+                let initial_attacker = if promo == 0 {
+                    squares[from]
+                } else {
+                    promo
+                };
+
+                let see_score = self.see(state, to, initial_attacker) * player_sign;
+                scored_capture_list.push((see_score, cap));
+            }
         }
 
         scored_capture_list.sort_by(|(score_a, _), (score_b, _)| {
