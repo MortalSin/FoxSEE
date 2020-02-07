@@ -247,10 +247,10 @@ pub fn eval_state(state: &State) -> i32 {
                 }
 
                 let file_mask = file_masks[index];
-                if file_mask & bitboard.w_all == 0 {
+                if file_mask & bitboard.w_pawn == 0 {
                     midgame_score += ROOK_OPEN_LINE_VAL;
 
-                    if file_mask & bitboard.b_all == 0 {
+                    if file_mask & bitboard.b_pawn == 0 {
                         midgame_score += ROOK_OPEN_LINE_VAL;
                     }
                 }
@@ -267,10 +267,10 @@ pub fn eval_state(state: &State) -> i32 {
                 }
 
                 let file_mask = file_masks[index];
-                if file_mask & bitboard.b_all == 0 {
+                if file_mask & bitboard.b_pawn == 0 {
                     midgame_score -= ROOK_OPEN_LINE_VAL;
 
-                    if file_mask & bitboard.w_all == 0 {
+                    if file_mask & bitboard.w_pawn == 0 {
                         midgame_score -= ROOK_OPEN_LINE_VAL;
                     }
                 }
