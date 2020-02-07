@@ -171,11 +171,11 @@ impl SearchEngine {
             let score = self.ab_search(state, mov_index == 0, &mut next_pv_table, beta, alpha, depth - 1, ply + 1, node_count, seldepth);
             state.undo_mov(from, to, tp);
 
-            if score * player_sign >= beta * player_sign {
+            if (score - beta) * player_sign >= 0 {
                 return score
             }
 
-            if score * player_sign > alpha * player_sign {
+            if (score - alpha) * player_sign > 0 {
                 alpha = score;
 
                 pv_table[0] = mov;
@@ -425,9 +425,8 @@ impl SearchEngine {
         state.undo_mov(from, to, tp);
 
         let history_improvement = depth as u64;
-        let signed_score = score * player_sign;
 
-        if signed_score >= beta * player_sign {
+        if (score - beta) * player_sign >= 0 {
             if !is_capture {
                 self.refutation_table[ply as usize].1 = self.refutation_table[ply as usize].0;
                 self.refutation_table[ply as usize].0 = (score, mov);
@@ -442,11 +441,11 @@ impl SearchEngine {
             return Beta(score)
         }
 
-        if signed_score > *best_score * player_sign {
+        if (score - *best_score) * player_sign > 0 {
             *best_score = score;
         }
 
-        if signed_score > alpha * player_sign {
+        if (score - alpha) * player_sign > 0 {
             pv_table[0] = mov;
             pv_table[1..PV_TRACK_LENGTH].copy_from_slice(&next_pv_table[0..PV_TRACK_LENGTH-1]);
 
@@ -518,11 +517,11 @@ impl SearchEngine {
 
         let score = eval::eval_state(state);
 
-        if score * player_sign >= beta * player_sign {
+        if (score - beta) * player_sign >= 0 {
             return score
         }
 
-        if score * player_sign > alpha * player_sign {
+        if (score - alpha) * player_sign > 0 {
             alpha = score;
         }
 
@@ -575,11 +574,11 @@ impl SearchEngine {
             let score = self.q_search(state, beta, alpha, ply + 1, seldepth);
             state.undo_mov(from, to, tp);
 
-            if score * player_sign >= beta * player_sign {
+            if (score - beta) * player_sign >= 0 {
                 return score
             }
 
-            if score * player_sign > alpha * player_sign {
+            if (score - alpha) * player_sign > 0 {
                 alpha = score;
             }
         }
