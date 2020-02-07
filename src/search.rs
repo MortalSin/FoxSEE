@@ -308,13 +308,28 @@ impl SearchEngine {
             score_b.partial_cmp(&score_a).unwrap()
         });
 
-        for (_score, cap) in scored_capture_list {
-            match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
-                Beta(score) => return score,
-                Alpha(score) => {
-                    alpha = score;
-                },
-                Noop => (),
+        for (score, cap) in scored_capture_list {
+            if !on_pv && !in_check && score < 0 && depth > 1 {
+                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, alpha + player_sign, depth - 1, depth_reduced, ply, player_sign, node_count, seldepth) {
+                    Noop => (),
+                    _ => {
+                        match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
+                            Beta(score) => return score,
+                            Alpha(score) => {
+                                alpha = score;
+                            },
+                            Noop => (),
+                        }
+                    }
+                }
+            } else {
+                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
+                    Beta(score) => return score,
+                    Alpha(score) => {
+                        alpha = score;
+                    },
+                    Noop => (),
+                }
             }
         }
 
