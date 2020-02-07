@@ -266,7 +266,9 @@ impl SearchEngine {
 
         let (cap_list, non_cap_list) = self.mov_generator.gen_reg_mov_list(state);
 
-        let mut scored_capture_list = Vec::new();
+        let mut good_capture_list = Vec::new();
+        let mut bad_capture_list = Vec::new();
+
         let squares = state.squares;
 
         let (last_to, last_captured) = *(state.history_mov_stack.last().unwrap());
@@ -285,13 +287,13 @@ impl SearchEngine {
             };
 
             if reply_score != 0 {
-                scored_capture_list.push((reply_score, cap));
+                good_capture_list.push((reply_score, cap));
                 continue
             }
 
             let exchange_score = eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo);
             if exchange_score >= 0 {
-                scored_capture_list.push((exchange_score, cap));
+                good_capture_list.push((exchange_score, cap));
             } else {
                 let initial_attacker = if promo == 0 {
                     squares[from]
@@ -300,36 +302,25 @@ impl SearchEngine {
                 };
 
                 let see_score = self.see(state, to, initial_attacker) * player_sign + eval::val_of(promo);
-                scored_capture_list.push((see_score, cap));
+                if see_score >= 0 {
+                    good_capture_list.push((see_score, cap));
+                } else {
+                    bad_capture_list.push((see_score, cap));
+                }
             }
         }
 
-        scored_capture_list.sort_by(|(score_a, _), (score_b, _)| {
+        good_capture_list.sort_by(|(score_a, _), (score_b, _)| {
             score_b.partial_cmp(&score_a).unwrap()
         });
 
-        for (score, cap) in scored_capture_list {
-            if !on_pv && !in_check && score < 0 && depth > 1 {
-                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, alpha + player_sign, depth - 1, depth_reduced, ply, player_sign, node_count, seldepth) {
-                    Noop => (),
-                    _ => {
-                        match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
-                            Beta(score) => return score,
-                            Alpha(score) => {
-                                alpha = score;
-                            },
-                            Noop => (),
-                        }
-                    }
-                }
-            } else {
-                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
-                    Beta(score) => return score,
-                    Alpha(score) => {
-                        alpha = score;
-                    },
-                    Noop => (),
-                }
+        for (_score, cap) in good_capture_list {
+            match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
+                Beta(score) => return score,
+                Alpha(score) => {
+                    alpha = score;
+                },
+                Noop => (),
             }
         }
 
@@ -416,6 +407,31 @@ impl SearchEngine {
                 }
             } else {
                 match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
+                    Beta(score) => return score,
+                    Alpha(score) => {
+                        alpha = score;
+                    },
+                    Noop => (),
+                }
+            }
+        }
+
+        for (_score, cap) in bad_capture_list {
+            if !on_pv && !in_check && depth > 1 {
+                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, alpha + player_sign, depth - 1, depth_reduced, ply, player_sign, node_count, seldepth) {
+                    Noop => (),
+                    _ => {
+                        match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
+                            Beta(score) => return score,
+                            Alpha(score) => {
+                                alpha = score;
+                            },
+                            Noop => (),
+                        }
+                    }
+                }
+            } else {
+                match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, depth_reduced, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
