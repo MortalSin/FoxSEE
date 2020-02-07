@@ -13,6 +13,7 @@ const FEN_ENP_SQR_INDEX: usize = 3;
 const FEN_HALF_MOV_INDEX: usize = 4;
 
 const MIN_POS_COUNT_FOR_REP: usize = 6;
+const LAST_DUP_POS_INDEX: usize = 4;
 
 pub struct State<'state> {
     pub squares: [u8; def::BOARD_SIZE],
@@ -92,9 +93,13 @@ impl <'state> State<'state> {
             return false
         }
 
+        if self.history_pos_stack[history_len - LAST_DUP_POS_INDEX] == self.hash_key {
+            return true
+        }
+
         let mut dup_count = 0;
         for check_index in 1..=check_range {
-            if self.history_pos_stack[history_len-check_index] == self.hash_key {
+            if self.history_pos_stack[history_len - check_index] == self.hash_key {
                 dup_count += 1;
             }
 
