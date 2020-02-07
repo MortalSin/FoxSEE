@@ -13,6 +13,7 @@ A tiny yet strong UCI chess engine written in Rust!
 - 0x88 Board
 - Minimax Search with Alpha-Beta Pruning
 - Quiescence Search
+- Null-move Pruning
 - SEE
 - MVV/LVA
 - History Heuristic
