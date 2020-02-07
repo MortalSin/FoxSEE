@@ -245,6 +245,10 @@ impl SearchEngine {
             }
         }
 
+        if on_pv && pv_mov == 0 {
+            depth += 1;
+        }
+
         let (cap_list, non_cap_list) = self.mov_generator.gen_reg_mov_list(state);
 
         let mut scored_capture_list = Vec::new();
