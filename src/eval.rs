@@ -27,7 +27,6 @@ static DUP_PAWN_PEN: i32 = 10;
 static ISOLATE_PAWN_PEN: i32 = 20;
 
 static ROOK_OPEN_LINE_VAL: i32 = 20;
-static QUEEN_OPEN_LINE_VAL: i32 = 10;
 
 static COMF_SQR_VAL: i32 = 10;
 static PREF_SQR_VAL: i32 = 20;
@@ -290,12 +289,6 @@ pub fn eval_state(state: &State) -> i32 {
                     midgame_score += COMF_SQR_VAL;
                 }
 
-                let file_mask = file_masks[index];
-                if file_mask & bitboard.w_pawn == 0
-                && file_mask & bitboard.b_rook == 0 {
-                    midgame_score += QUEEN_OPEN_LINE_VAL;
-                }
-
                 wq_count += 1;
             },
             def::BQ => {
@@ -303,12 +296,6 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if index_mask & BQ_COMF_MASK != 0 {
                     midgame_score -= COMF_SQR_VAL;
-                }
-
-                let file_mask = file_masks[index];
-                if file_mask & bitboard.b_pawn == 0
-                && file_mask & bitboard.w_rook == 0 {
-                    midgame_score -= QUEEN_OPEN_LINE_VAL;
                 }
 
                 bq_count += 1;
@@ -521,7 +508,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("bnrqnrkb/1pp2pp1/8/8/3pp3/8/PPP2PPP/BNRQNRKB w - - 0 1", &zob_keys, &bitmask);
-        assert_eq!(-30, eval_state(&state));
+        assert_eq!(-40, eval_state(&state));
     }
 
     #[test]
