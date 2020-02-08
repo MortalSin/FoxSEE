@@ -571,7 +571,26 @@ impl SearchEngine {
 
         for cap in cap_list {
             let (from, to, _tp, promo) = util::decode_u32_mov(cap);
-            scored_cap_list.push((eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo), cap));
+
+            let exchange_score = eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo);
+            if exchange_score > 0 {
+                scored_cap_list.push((exchange_score, cap));
+            } else {
+                let initial_attacker = if promo == 0 {
+                    squares[from]
+                } else {
+                    promo
+                };
+
+                let see_score = self.see(state, to, initial_attacker) * player_sign + eval::val_of(promo);
+                if see_score > 0 {
+                    scored_cap_list.push((see_score, cap));
+                }
+            }
+        }
+
+        if scored_cap_list.is_empty() {
+            return alpha
         }
 
         scored_cap_list.sort_by(|(score_a, _), (score_b, _)| {
@@ -784,7 +803,7 @@ mod tests {
         let mut state = State::new("r5kr/1b1pR1p1/p1q1N2p/5P1n/3Q4/B7/P5PP/5RK1 w - - 1 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(105, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(120, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
@@ -794,7 +813,7 @@ mod tests {
         let mut state = State::new("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-30, search_engine.q_search(&mut state, 20000, -20000, 0, &mut 0));
+        assert_eq!(-60, search_engine.q_search(&mut state, 20000, -20000, 0, &mut 0));
     }
 
     #[test]

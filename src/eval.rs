@@ -489,7 +489,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("rnbqr1k1/pppp1ppp/5nb1/8/8/5NB1/PPPP1PPP/RNBQ1RK1 w Qq - 0 1", &zob_keys, &bitmask);
-        assert_eq!(0, eval_state(&state));
+        assert_eq!(-40, eval_state(&state));
     }
 
     #[test]
@@ -507,7 +507,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("rnbqr1k1/pppppppp/5nb1/8/8/5NB1/PPPP1PPP/RNBQR1K1 w Qq - 0 1", &zob_keys, &bitmask);
-        assert_eq!(-100, eval_state(&state));
+        assert_eq!(-80, eval_state(&state));
     }
 
     #[test]
