@@ -723,7 +723,7 @@ mod tests {
         let mut state = State::new("r5kr/1b1pR1p1/p1q1N2p/5P1n/3Q4/B7/P5PP/5RK1 w - - 1 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(115, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(100, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
@@ -763,7 +763,7 @@ mod tests {
         let mut state = State::new("2r4k/1R5p/8/p1p5/P1Pp1p2/3R3P/KP3r2/8 w - - 0 40", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-145, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(-100, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]

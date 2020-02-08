@@ -20,7 +20,9 @@ static KING_THREAT_VAL: i32 = 15;
 static ADVANCE_VAL: i32 = 150;
 static DRAW_PEN: i32 = 100;
 
-static PASS_PAWN_VAL: i32 = 15;
+static MIDGAME_PASS_PAWN_VAL: i32 = 50;
+static ENDGAME_PASS_PAWN_VAL: i32 = 90;
+
 static DUP_PAWN_PEN: i32 = 10;
 static ISOLATE_PAWN_PEN: i32 = 20;
 
@@ -28,9 +30,6 @@ static ROOK_OPEN_LINE_VAL: i32 = 10;
 
 static COMF_SQR_VAL: i32 = 10;
 static PREF_SQR_VAL: i32 = 20;
-
-const W_FIFTH_RANK: usize = 63;
-const B_FIFTH_RANK: usize = 56;
 
 static WQ_COMF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_01111110_00111100_00000000;
 static BQ_COMF_MASK: u64 = 0b00000000_00111100_01111110_00000000_00000000_00000000_00000000_00000000;
@@ -54,6 +53,8 @@ static WP_COMF_MASK: u64 = 0b00000000_01111110_01111110_01111110_00111100_110000
 static BP_COMF_MASK: u64 = 0b00000000_11100111_11000011_00111100_01111110_01111110_01111110_00000000;
 static WP_PREF_MASK: u64 = 0b00000000_01111110_00111100_00011000_00000000_00000000_00000000_00000000;
 static BP_PREF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00011000_00111100_01111110_00000000;
+static WP_DANGER_MASK: u64 = 0b00000000_11111111_11111111_00000000_00000000_00000000_00000000_00000000;
+static BP_DANGER_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_11111111_11111111_00000000;
 
 static K_ENDGAME_COMF_MASK: u64 = 0b00000000_00000000_01111110_01111110_01111110_01111110_00000000_00000000;
 
@@ -133,16 +134,13 @@ pub fn eval_state(state: &State) -> i32 {
                 let w_pawn_mask = bitboard.w_pawn;
                 let b_pawn_mask = bitboard.b_pawn;
 
-                if index > W_FIFTH_RANK && wp_forward_masks[index] & b_pawn_mask == 0 {
-                    let pass_pawn_weight = (index / 16 - 3) as i32;
-                    let pass_pawn_val = pass_pawn_weight * PASS_PAWN_VAL;
-
-                    midgame_score += pass_pawn_val;
-                    endgame_score += pass_pawn_val * pass_pawn_weight;
+                if index_mask & WP_DANGER_MASK != 0 && wp_forward_masks[index] & b_pawn_mask == 0 {
+                    midgame_score += MIDGAME_PASS_PAWN_VAL;
+                    endgame_score += ENDGAME_PASS_PAWN_VAL;
 
                     if wp_nearby_masks[index] & w_pawn_mask != 0 {
-                        midgame_score += pass_pawn_val;
-                        endgame_score += pass_pawn_val * pass_pawn_weight;
+                        midgame_score += MIDGAME_PASS_PAWN_VAL;
+                        endgame_score += ENDGAME_PASS_PAWN_VAL;
                     }
                 } else if wp_nearby_masks[index] & w_pawn_mask == 0 && wp_forward_masks[index] & w_pawn_mask == 0 {
                     midgame_score -= ISOLATE_PAWN_PEN;
@@ -167,16 +165,13 @@ pub fn eval_state(state: &State) -> i32 {
                 let w_pawn_mask = bitboard.w_pawn;
                 let b_pawn_mask = bitboard.b_pawn;
 
-                if index < B_FIFTH_RANK && bp_forward_masks[index] & w_pawn_mask == 0 {
-                    let pass_pawn_weight = (4 - index / 16) as i32;
-                    let pass_pawn_val = pass_pawn_weight * PASS_PAWN_VAL;
-
-                    midgame_score -= pass_pawn_val;
-                    endgame_score -= pass_pawn_val * pass_pawn_weight;
+                if index_mask & BP_DANGER_MASK != 0 && bp_forward_masks[index] & w_pawn_mask == 0 {
+                    midgame_score -= MIDGAME_PASS_PAWN_VAL;
+                    endgame_score -= ENDGAME_PASS_PAWN_VAL;
 
                     if bp_nearby_masks[index] & b_pawn_mask != 0 {
-                        midgame_score -= pass_pawn_val;
-                        endgame_score -= pass_pawn_val * pass_pawn_weight;
+                        midgame_score -= MIDGAME_PASS_PAWN_VAL;
+                        endgame_score -= ENDGAME_PASS_PAWN_VAL;
                     }
                 } else if bp_nearby_masks[index] & b_pawn_mask == 0 && bp_forward_masks[index] & b_pawn_mask == 0 {
                     midgame_score += ISOLATE_PAWN_PEN;
@@ -473,7 +468,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("1r2k3/8/3P4/p3P2p/8/8/1R2K3/8 w - - 0 1", &zob_keys, &bitmask);
-        assert_eq!(135, eval_state(&state));
+        assert_eq!(180, eval_state(&state));
     }
 
     #[test]
@@ -509,7 +504,7 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("8/6k1/6b1/p3p1p1/P3p1P1/1P1p3P/8/2R3K1 b - - 1 39", &zob_keys, &bitmask);
-        assert_eq!(-60, eval_state(&state));
+        assert_eq!(-105, eval_state(&state));
     }
 
     #[test]
