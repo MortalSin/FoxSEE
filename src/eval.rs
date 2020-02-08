@@ -9,13 +9,13 @@ pub static K_VAL: i32 = 20000;
 static Q_VAL: i32 = 1000;
 static R_VAL: i32 = 525;
 static B_VAL: i32 = 350;
-static N_VAL: i32 = 350;
+static N_VAL: i32 = 345;
 static P_VAL: i32 = 100;
 
 static KING_PROTECTED_VAL: i32 = 50;
 static KING_COVERED_VAL: i32 = 30;
+static KING_CASTLED_VAL: i32 = 10;
 static KING_THREAT_VAL: i32 = 15;
-static KING_CASTLED_VAL: i32 = 20;
 
 static ADVANCE_VAL: i32 = 150;
 static DRAW_PEN: i32 = 100;
@@ -305,8 +305,14 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if (wk_protect_masks[index] & bitboard.w_pawn).count_ones() < 2 {
                     wk_safety_score -= KING_PROTECTED_VAL;
-                } else if file_masks[index] & bitboard.w_pawn != 0 {
-                    wk_safety_score += KING_COVERED_VAL;
+                } else {
+                    if file_masks[index] & bitboard.w_pawn != 0 {
+                        wk_safety_score += KING_COVERED_VAL;
+                    }
+
+                    if state.w_castled {
+                        wk_safety_score += KING_CASTLED_VAL;
+                    }
                 }
 
                 let file_mask = file_masks[index];
@@ -349,8 +355,14 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if (bk_protect_masks[index] & bitboard.b_pawn).count_ones() < 2 {
                     bk_safety_score += KING_PROTECTED_VAL;
-                } else if file_masks[index] & bitboard.b_pawn != 0 {
-                    bk_safety_score -= KING_COVERED_VAL;
+                } else {
+                    if file_masks[index] & bitboard.b_pawn != 0 {
+                        bk_safety_score -= KING_COVERED_VAL;
+                    }
+
+                    if state.b_castled {
+                        bk_safety_score -= KING_CASTLED_VAL;
+                    }
                 }
 
                 let file_mask = file_masks[index];
@@ -410,18 +422,10 @@ pub fn eval_state(state: &State) -> i32 {
 
     if bq_count > 0 {
         midgame_score += wk_safety_score;
-
-        if state.w_castled {
-            midgame_score += KING_CASTLED_VAL;
-        }
     }
 
     if wq_count > 0 {
         midgame_score += bk_safety_score;
-
-        if state.b_castled {
-            midgame_score -= KING_CASTLED_VAL;
-        }
     }
 
     base_score + midgame_score
