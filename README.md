@@ -4,9 +4,6 @@ A tiny yet strong UCI chess engine written in Rust!
 - Only 3000 lines of code
 - Very small memory footprint
 
-**Release Version** 1.2.3  
-**Development Version** 1.2.4
-
 [![Build Status](https://travis-ci.com/redsalmon91/FoxSEE.svg?branch=master)](https://travis-ci.com/redsalmon91/FoxSEE)
 
 ## Features
