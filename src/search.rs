@@ -136,7 +136,13 @@ impl SearchEngine {
             for cap in cap_list {
                 let (from, to, _tp, promo) = util::decode_u32_mov(cap);
 
-                let see_score = self.see(state, to, squares[from]) * player_sign + eval::val_of(promo);
+                let initial_attacker = if promo == 0 {
+                    squares[from]
+                } else {
+                    promo
+                };
+
+                let see_score = self.see(state, to, initial_attacker) * player_sign + eval::val_of(promo);
                 self.root_node_mov_list.push((see_score, cap));
             }
 
@@ -159,13 +165,19 @@ impl SearchEngine {
         });
 
         for mov_index in 0..self.root_node_mov_list.len() {
-            let (_score, mov) = self.root_node_mov_list[mov_index];
+            let (score, mov) = self.root_node_mov_list[mov_index];
             let (from, to, tp, promo) = util::decode_u32_mov(mov);
+
+            let depth = if depth > 1 && mov_index > 0 && score < 0 {
+                depth - 1
+            } else {
+                depth
+            };
 
             let mut next_pv_table = [0; PV_TRACK_LENGTH];
 
             state.do_mov(from, to, tp, promo);
-            let score = self.ab_search(state, mov_index == 0, &mut next_pv_table, beta, alpha, depth - 1, ply + 1, node_count, seldepth);
+            let score = self.ab_search(state, mov_index == 0, &mut next_pv_table, beta, alpha, depth - 1, false, ply + 1, node_count, seldepth);
             state.undo_mov(from, to, tp);
 
             if score * player_sign >= beta * player_sign {
@@ -185,7 +197,7 @@ impl SearchEngine {
         alpha
     }
 
-    pub fn ab_search(&mut self, state: &mut State, on_pv: bool, pv_table: &mut [u32], mut alpha: i32, beta: i32, mut depth: u8, ply: u8, node_count: &mut u64, seldepth: &mut u8) -> i32 {
+    pub fn ab_search(&mut self, state: &mut State, on_pv: bool, pv_table: &mut [u32], mut alpha: i32, beta: i32, mut depth: u8, depth_reduced: bool, ply: u8, node_count: &mut u64, seldepth: &mut u8) -> i32 {
         if self.abort {
             return 0
         }
@@ -217,6 +229,10 @@ impl SearchEngine {
 
         if in_check {
             depth += 1;
+
+            if depth_reduced {
+                depth += 1;
+            }
         }
 
         if depth == 0 {
@@ -232,7 +248,7 @@ impl SearchEngine {
             let (_from, to, _tp, _promo) = util::decode_u32_mov(pv_mov);
 
             if pv_mov != 0 {
-                match self.search_mov(state, true, pv_table, pv_mov, state.squares[to] != 0, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+                match self.search_mov(state, true, pv_table, pv_mov, state.squares[to] != 0, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
@@ -245,6 +261,7 @@ impl SearchEngine {
         let (cap_list, non_cap_list) = self.mov_generator.gen_reg_mov_list(state);
 
         let mut scored_capture_list = Vec::new();
+
         let squares = state.squares;
 
         let (last_to, last_captured) = *(state.history_mov_stack.last().unwrap());
@@ -267,8 +284,7 @@ impl SearchEngine {
                 continue
             }
 
-            let exchange_score = eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo);
-            scored_capture_list.push((exchange_score, cap));
+            scored_capture_list.push((eval::val_of(squares[to]) - eval::val_of(squares[from]) + eval::val_of(promo), cap));
         }
 
         scored_capture_list.sort_by(|(score_a, _), (score_b, _)| {
@@ -276,7 +292,7 @@ impl SearchEngine {
         });
 
         for (_score, cap) in scored_capture_list {
-            match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+            match self.search_mov(state, false, pv_table, cap, true, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                 Beta(score) => return score,
                 Alpha(score) => {
                     alpha = score;
@@ -298,7 +314,7 @@ impl SearchEngine {
         }
 
         if refutation_mov != 0 {
-            match self.search_mov(state, false, pv_table, refutation_mov, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+            match self.search_mov(state, false, pv_table, refutation_mov, false, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                 Beta(score) => return score,
                 Alpha(score) => {
                     alpha = score;
@@ -339,10 +355,10 @@ impl SearchEngine {
 
         for (_score, is_passed_pawn, non_cap) in scored_non_cap_list {
             if !is_passed_pawn && !in_check && !on_pv && depth > 1 {
-                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, alpha + player_sign, depth - 1, ply, player_sign, node_count, seldepth) {
+                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, alpha + player_sign, depth - 1, true, ply, player_sign, node_count, seldepth) {
                     Noop => (),
                     _ => {
-                        match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+                        match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                             Beta(score) => return score,
                             Alpha(score) => {
                                 alpha = score;
@@ -352,7 +368,7 @@ impl SearchEngine {
                     }
                 }
             } else if is_passed_pawn {
-                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth + 1, ply, player_sign, node_count, seldepth) {
+                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth + 1, false, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
@@ -360,7 +376,7 @@ impl SearchEngine {
                     Noop => (),
                 }
             } else {
-                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
@@ -377,7 +393,7 @@ impl SearchEngine {
                     continue
                 }
 
-                match self.search_mov(state, false, pv_table, cas_mov, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+                match self.search_mov(state, false, pv_table, cas_mov, false, &mut best_score, alpha, beta, depth, false, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
@@ -401,7 +417,7 @@ impl SearchEngine {
     }
 
     #[inline]
-    fn search_mov(&mut self, state: &mut State, on_pv: bool, pv_table: &mut [u32], mov: u32, is_capture: bool, best_score: &mut i32, alpha: i32, beta: i32, depth: u8, ply: u8, player_sign: i32, node_count: &mut u64, seldepth: &mut u8) -> SearchMovResult {
+    fn search_mov(&mut self, state: &mut State, on_pv: bool, pv_table: &mut [u32], mov: u32, is_capture: bool, best_score: &mut i32, alpha: i32, beta: i32, depth: u8, depth_reduced: bool, ply: u8, player_sign: i32, node_count: &mut u64, seldepth: &mut u8) -> SearchMovResult {
         if self.abort {
             return Beta(0)
         }
@@ -419,7 +435,7 @@ impl SearchEngine {
         let mut next_pv_table = [0; PV_TRACK_LENGTH];
 
         state.do_mov(from, to, tp, promo);
-        let score = self.ab_search(state, on_pv, &mut next_pv_table, beta, alpha, depth - 1, ply + 1, node_count, seldepth);
+        let score = self.ab_search(state, on_pv, &mut next_pv_table, beta, alpha, depth - 1, depth_reduced, ply + 1, node_count, seldepth);
         state.undo_mov(from, to, tp);
 
         let history_improvement = depth as u64;
@@ -989,47 +1005,5 @@ mod tests {
         let (from, to, _, _) = util::decode_u32_mov(best_mov);
         assert_eq!(from, util::map_sqr_notation_to_index("b7"));
         assert_eq!(to, util::map_sqr_notation_to_index("e4"));
-    }
-
-    #[test]
-    fn test_sbd_1() {
-        let zob_keys = XorshiftPrng::new().create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE);
-        let bitmask = BitMask::new();
-        let mut state = State::new("2b1k2r/2p2ppp/1qp4n/7B/1p2P3/5Q2/PPPr2PP/R2N1R1K b k - 0 1", &zob_keys, &bitmask);
-        let mut search_engine = SearchEngine::new();
-
-        let best_mov = search_engine.search(&mut state, 15500);
-
-        let (from, to, _, _) = util::decode_u32_mov(best_mov);
-        assert_eq!(from, util::map_sqr_notation_to_index("e8"));
-        assert_eq!(to, util::map_sqr_notation_to_index("g8"));
-    }
-
-    #[test]
-    fn test_sbd_2() {
-        let zob_keys = XorshiftPrng::new().create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE);
-        let bitmask = BitMask::new();
-        let mut state = State::new("r1bq1rk1/pp3ppp/2n2n2/3p4/8/P1NB4/1PP2PPP/R1BQK2R w KQ - 0 1", &zob_keys, &bitmask);
-        let mut search_engine = SearchEngine::new();
-
-        let best_mov = search_engine.search(&mut state, 15500);
-
-        let (from, to, _, _) = util::decode_u32_mov(best_mov);
-        assert_eq!(from, util::map_sqr_notation_to_index("e1"));
-        assert_eq!(to, util::map_sqr_notation_to_index("g1"));
-    }
-
-    #[test]
-    fn test_sbd_3() {
-        let zob_keys = XorshiftPrng::new().create_prn_table(def::BOARD_SIZE, def::PIECE_CODE_RANGE);
-        let bitmask = BitMask::new();
-        let mut state = State::new("rnbq1rk1/5ppp/p3pn2/1p6/2BP4/P1P2N2/5PPP/R1BQ1RK1 w - - 0 1", &zob_keys, &bitmask);
-        let mut search_engine = SearchEngine::new();
-
-        let best_mov = search_engine.search(&mut state, 15500);
-
-        let (from, to, _, _) = util::decode_u32_mov(best_mov);
-        assert_eq!(from, util::map_sqr_notation_to_index("c4"));
-        assert_eq!(to, util::map_sqr_notation_to_index("d3"));
     }
 }
