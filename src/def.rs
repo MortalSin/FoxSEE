@@ -1,5 +1,5 @@
 pub static ENGINE_NAME: &str = "FoxSEE";
-pub static VERSION: &str = "1.2.3";
+pub static VERSION: &str = "1.3.0";
 pub static AUTHOR: &str = "Zixiao Han";
 
 pub const BOARD_SIZE: usize = 120;
@@ -58,6 +58,16 @@ pub const fn on_same_side(player: u8, piece_code: u8) -> bool {
 }
 
 #[inline]
+pub const fn get_w_rank_weight(index: usize) -> i32 {
+    (index >> 4) as i32
+}
+
+#[inline]
+pub const fn get_b_rank_weight(index: usize) -> i32 {
+    7 - (index >> 4) as i32
+}
+
+#[inline]
 pub const fn is_k(piece_code: u8) -> bool {
     piece_code & K != 0
 }
@@ -98,6 +108,13 @@ mod tests {
 
         let p = PLAYER_B;
         assert_eq!(PLAYER_W, get_opposite_player(p));
+    }
+
+    #[test]
+    fn test_get_rank() {
+        assert_eq!(3, get_w_rank_weight(53));
+        assert_eq!(7, get_w_rank_weight(119));
+        assert_eq!(1, get_b_rank_weight(102));
     }
 
     #[test]

@@ -13,6 +13,9 @@ const REFUTATION_TABLE_SIZE: usize = 128;
 const MIN_BRANCHING_FACTOR: u64 = 2;
 const MAX_HISTORY_SCORE: u64 = u64::MAX;
 
+const W_SIXTH_RANK: usize = 79;
+const B_SIXTH_RANK: usize = 40;
+
 pub enum SearchMovResult {
     Beta(i32),
     Alpha(i32),
@@ -304,23 +307,6 @@ impl SearchEngine {
             }
         }
 
-        if (player_sign > 0 && (state.cas_rights & 0b1100 != 0)) || (player_sign < 0 && (state.cas_rights & 0b0011 != 0)) {
-            let castle_list = self.mov_generator.gen_castle_mov_list(state);
-            for cas_mov in castle_list {
-                if cas_mov == pv_mov || cas_mov == refutation_mov {
-                    continue
-                }
-
-                match self.search_mov(state, false, pv_table, cas_mov, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
-                    Beta(score) => return score,
-                    Alpha(score) => {
-                        alpha = score;
-                    },
-                    Noop => (),
-                }
-            }
-        }
-
         let mut scored_non_cap_list = Vec::new();
 
         for non_cap in non_cap_list {
@@ -330,9 +316,13 @@ impl SearchEngine {
 
             let (from, to, _tp, promo) = util::decode_u32_mov(non_cap);
             if promo != 0 && def::is_q(promo) {
-                scored_non_cap_list.push((MAX_HISTORY_SCORE, non_cap));
+                scored_non_cap_list.push((MAX_HISTORY_SCORE, false, non_cap));
                 continue
             }
+
+            let is_passed_pawn = 
+                (to > W_SIXTH_RANK && state.squares[from] == def::WP && state.bitmask.wp_forward_masks[to] & state.bitboard.b_pawn == 0)
+                || (to < B_SIXTH_RANK && state.squares[from] == def::BP && state.bitmask.bp_forward_masks[to] & state.bitboard.w_pawn == 0);
 
             let history_score = if player_sign > 0 {
                 self.w_history_table[from][to]
@@ -340,16 +330,16 @@ impl SearchEngine {
                 self.b_history_table[from][to]
             };
 
-            scored_non_cap_list.push((history_score, non_cap));
+            scored_non_cap_list.push((history_score, is_passed_pawn, non_cap));
         }
 
-        scored_non_cap_list.sort_by(|(score_a, _), (score_b, _)| {
+        scored_non_cap_list.sort_by(|(score_a, _, _), (score_b, _, _)| {
             score_b.partial_cmp(&score_a).unwrap()
         });
 
-        for (_score, non_cap) in scored_non_cap_list {
-            if !in_check && !on_pv && depth > 1 {
-                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, alpha + player_sign, depth -  1, ply, player_sign, node_count, seldepth) {
+        for (_score, is_passed_pawn, non_cap) in scored_non_cap_list {
+            if !is_passed_pawn && !in_check && !on_pv && depth > 1 {
+                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, alpha + player_sign, depth - 1, ply, player_sign, node_count, seldepth) {
                     Noop => (),
                     _ => {
                         match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
@@ -361,8 +351,33 @@ impl SearchEngine {
                         }
                     }
                 }
+            } else if is_passed_pawn {
+                match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth + 1, ply, player_sign, node_count, seldepth) {
+                    Beta(score) => return score,
+                    Alpha(score) => {
+                        alpha = score;
+                    },
+                    Noop => (),
+                }
             } else {
                 match self.search_mov(state, false, pv_table, non_cap, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
+                    Beta(score) => return score,
+                    Alpha(score) => {
+                        alpha = score;
+                    },
+                    Noop => (),
+                }
+            }
+        }
+
+        if (player_sign > 0 && (state.cas_rights & 0b1100 != 0)) || (player_sign < 0 && (state.cas_rights & 0b0011 != 0)) {
+            let castle_list = self.mov_generator.gen_castle_mov_list(state);
+            for cas_mov in castle_list {
+                if cas_mov == pv_mov || cas_mov == refutation_mov {
+                    continue
+                }
+
+                match self.search_mov(state, false, pv_table, cas_mov, false, &mut best_score, alpha, beta, depth, ply, player_sign, node_count, seldepth) {
                     Beta(score) => return score,
                     Alpha(score) => {
                         alpha = score;
@@ -667,7 +682,7 @@ mod tests {
         let state = State::new("4q1kr/ppn1rp1p/n1p1PB2/5P2/2B1Q2P/2N3p1/PPP1b1P1/4R2K b - - 1 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(150, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BN));
+        assert_eq!(145, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BN));
         assert_eq!(-100, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BP));
         assert_eq!(325, search_engine.see(&state, util::map_sqr_notation_to_index("e6"), def::BR));
     }
@@ -679,9 +694,9 @@ mod tests {
         let state = State::new("r5kr/1b1pR1p1/ppq1N2p/5P1n/3Q4/B6B/P5PP/5RK1 w - - 1 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-550, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WQ));
+        assert_eq!(-555, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WQ));
         assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WN));
-        assert_eq!(-75, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WR));
+        assert_eq!(-80, search_engine.see(&state, util::map_sqr_notation_to_index("g7"), def::WR));
     }
 
     #[test]
@@ -692,8 +707,8 @@ mod tests {
         let search_engine = SearchEngine::new();
 
         assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WN));
-        assert_eq!(100, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WB));
-        assert_eq!(-19550, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WK));
+        assert_eq!(95, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WB));
+        assert_eq!(-19555, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WK));
     }
 
     #[test]
@@ -703,7 +718,7 @@ mod tests {
         let state = State::new("r4kn1/p2bprb1/Bp1p1ppP/2pP4/1PP1Pn2/PRNB2K1/2QN1PPq/5R2 w - - 0 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-19650, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WK));
+        assert_eq!(-19655, search_engine.see(&state, util::map_sqr_notation_to_index("f4"), def::WK));
     }
 
     #[test]
@@ -723,7 +738,7 @@ mod tests {
         let mut state = State::new("r5kr/1b1pR1p1/p1q1N2p/5P1n/3Q4/B7/P5PP/5RK1 w - - 1 1", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(100, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(120, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
@@ -733,7 +748,7 @@ mod tests {
         let mut state = State::new("2k2r2/pp2br2/1np1p2q/2NpP2p/2PP2p1/1P1N4/P3Q1PP/3R1R1K b - - 8 27", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-40, search_engine.q_search(&mut state, 20000, -20000, 0, &mut 0));
+        assert_eq!(-65, search_engine.q_search(&mut state, 20000, -20000, 0, &mut 0));
     }
 
     #[test]
@@ -753,7 +768,7 @@ mod tests {
         let mut state = State::new("2k5/pp2b3/1np1p3/2NpP2p/3P2p1/2PN4/PP4PP/5q1K w - - 8 27", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-1000, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(-985, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
@@ -763,7 +778,7 @@ mod tests {
         let mut state = State::new("2r4k/1R5p/8/p1p5/P1Pp1p2/3R3P/KP3r2/8 w - - 0 40", &zob_keys, &bitmask);
         let search_engine = SearchEngine::new();
 
-        assert_eq!(-100, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
+        assert_eq!(-180, search_engine.q_search(&mut state, -20000, 20000, 0, &mut 0));
     }
 
     #[test]
