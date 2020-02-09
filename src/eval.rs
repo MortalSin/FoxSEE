@@ -135,7 +135,7 @@ pub fn eval_state(state: &State) -> i32 {
                 let w_pawn_mask = bitboard.w_pawn;
                 let b_pawn_mask = bitboard.b_pawn;
 
-                if index > W_FOURTH_RANK && squares[index + 16] == 0 && wp_forward_masks[index] & b_pawn_mask == 0 {
+                if index > W_FOURTH_RANK && wp_forward_masks[index] & b_pawn_mask == 0 {
                     let rank = def::get_w_rank_weight(index) - 3;
                     let pass_pawn_val = PASS_PAWN_VAL * rank * rank;
 
@@ -172,7 +172,7 @@ pub fn eval_state(state: &State) -> i32 {
                 let w_pawn_mask = bitboard.w_pawn;
                 let b_pawn_mask = bitboard.b_pawn;
 
-                if index < B_FOURTH_RANK && squares[index - 16] == 0 && bp_forward_masks[index] & w_pawn_mask == 0 {
+                if index < B_FOURTH_RANK && bp_forward_masks[index] & w_pawn_mask == 0 {
                     let rank = def::get_b_rank_weight(index) - 3;
                     let pass_pawn_val = PASS_PAWN_VAL * rank * rank;
 
@@ -525,6 +525,6 @@ mod tests {
         let bitmask = BitMask::new();
 
         let state = State::new("8/p6k/p4K1P/P4PP1/8/3b4/8/8 w - - 11 61", &zob_keys, &bitmask);
-        assert_eq!(-90, eval_state(&state));
+        assert_eq!(60, eval_state(&state));
     }
 }
