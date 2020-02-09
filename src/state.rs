@@ -12,6 +12,8 @@ const FEN_CAS_RIGHTS_INDEX: usize = 2;
 const FEN_ENP_SQR_INDEX: usize = 3;
 const FEN_HALF_MOV_INDEX: usize = 4;
 
+const DUP_POS_CHECK_INDEX: usize = 4;
+
 pub struct State<'state> {
     pub squares: [u8; def::BOARD_SIZE],
     pub player: u8,
@@ -85,6 +87,14 @@ impl <'state> State<'state> {
     pub fn is_draw(&self) -> bool {
         let history_len = self.history_pos_stack.len();
         let check_range = history_len.min(self.non_cap_mov_count as usize);
+
+        if check_range < DUP_POS_CHECK_INDEX {
+            return false
+        }
+
+        if self.history_pos_stack[history_len - DUP_POS_CHECK_INDEX] == self.hash_key {
+            return true
+        }
 
         let mut dup_count = 0;
         for check_index in 1..=check_range {

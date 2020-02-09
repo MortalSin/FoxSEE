@@ -9,7 +9,8 @@ use crate::{
 use std::u64;
 
 const PV_TRACK_LENGTH: usize = 16;
-const REFUTATION_TABLE_SIZE: usize = 128;
+const MAX_DEPTH: u8 = 64;
+const REFUTATION_TABLE_SIZE: usize = 65;
 const MIN_BRANCHING_FACTOR: u64 = 2;
 const MAX_HISTORY_SCORE: u64 = u64::MAX;
 
@@ -110,6 +111,10 @@ impl SearchEngine {
             }
 
             depth += 1;
+
+            if depth > MAX_DEPTH {
+                break
+            }
 
             previous_node_count = node_count;
             time_after_previous_iter = current_time_millis;
