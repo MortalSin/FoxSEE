@@ -32,29 +32,40 @@ static ROOK_OPEN_LINE_VAL: i32 = 10;
 
 static COMF_SQR_VAL: i32 = 10;
 static PREF_SQR_VAL: i32 = 20;
+static AVOID_SQR_VAL: i32 = 10;
 
 static WQ_COMF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_01111110_00111100_00000000;
 static BQ_COMF_MASK: u64 = 0b00000000_00111100_01111110_00000000_00000000_00000000_00000000_00000000;
+static WQ_AVOID_MASK: u64 = 0b11111111_10000001_10000001_11011011_11011011_10000001_10000001_11111111;
+static BQ_AVOID_MASK: u64 = 0b11111111_10000001_10000001_11011011_11011011_10000001_10000001_11111111;
 
 static WR_COMF_MASK: u64 = 0b11111111_11111111_00000000_00000000_00000000_00000000_00000000_00111100;
 static BR_COMF_MASK: u64 = 0b00111100_00000000_00000000_00000000_00000000_00000000_11111111_11111111;
 static WR_PREF_MASK: u64 = 0b00000000_00111100_00000000_00000000_00000000_00000000_00000000_00000000;
 static BR_PREF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_00000000_00111100_00000000;
+static WR_AVOID_MASK: u64 = 0b00000000_00000000_10000001_10000001_11000011_10011001_10000001_00000000;
+static BR_AVOID_MASK: u64 = 0b00000000_10000001_10011001_11000011_10000001_10000001_00000000_00000000;
 
 static WB_COMF_MASK: u64 = 0b00000000_00000000_11111111_01111110_00111100_01011010_01000010_00000000;
 static BB_COMF_MASK: u64 = 0b00000000_01000010_01011010_00111100_01111110_11111111_00000000_00000000;
 static WB_PREF_MASK: u64 = 0b00000000_00000000_01111110_01011010_00011000_00000000_00000000_00000000;
 static BB_PREF_MASK: u64 = 0b00000000_00000000_00000000_00011000_01011010_01111110_00000000_00000000;
+static WB_AVOID_MASK: u64 = 0b11111111_10000001_10000001_10000001_11000011_10011001_10000001_11111111;
+static BB_AVOID_MASK: u64 = 0b11111111_10000001_10011001_11000011_10000001_10000001_10000001_11111111;
 
 static WN_COMF_MASK: u64 = 0b00000000_00111100_11111111_01111110_00111100_01100110_00011000_00000000;
 static BN_COMF_MASK: u64 = 0b00000000_00011000_01100110_00111100_01111110_11111111_00111100_00000000;
 static WN_PREF_MASK: u64 = 0b00000000_00111100_01111110_00011000_00011000_00000000_00000000_00000000;
 static BN_PREF_MASK: u64 = 0b00000000_00000000_00000000_00011000_00011000_01111110_00111100_00000000;
+static WN_AVOID_MASK: u64 = 0b11111111_10000001_10000001_10000001_11000011_10011001_10000001_11111111;
+static BN_AVOID_MASK: u64 = 0b11111111_10000001_10011001_11000011_10000001_10000001_10000001_11111111;
 
 static WP_COMF_MASK: u64 = 0b00000000_11111111_11111111_01111110_00111100_11000011_11100111_00000000;
 static BP_COMF_MASK: u64 = 0b00000000_11100111_11000011_00111100_01111110_11111111_11111111_00000000;
 static WP_PREF_MASK: u64 = 0b00000000_01111110_00111100_00011000_00000000_00000000_00000000_00000000;
 static BP_PREF_MASK: u64 = 0b00000000_00000000_00000000_00000000_00011000_00111100_01111110_00000000;
+static WP_AVOID_MASK: u64 = 0b00000000_00000000_00000000_00000000_00000000_00111100_00011000_00000000;
+static BP_AVOID_MASK: u64 = 0b00000000_00011000_00111100_00000000_00000000_00000000_00000000_00000000;
 
 static K_ENDGAME_COMF_MASK: u64 = 0b00000000_00000000_01111110_01111110_01111110_01111110_00000000_00000000;
 
@@ -130,6 +141,8 @@ pub fn eval_state(state: &State) -> i32 {
                         midgame_score += PREF_SQR_VAL;
                         endgame_score += PREF_SQR_VAL;
                     }
+                } else if index_mask & WP_AVOID_MASK != 0 {
+                    midgame_score -= AVOID_SQR_VAL;
                 }
 
                 let w_pawn_mask = bitboard.w_pawn;
@@ -167,6 +180,8 @@ pub fn eval_state(state: &State) -> i32 {
                         midgame_score -= PREF_SQR_VAL;
                         endgame_score -= PREF_SQR_VAL;
                     }
+                } else if index_mask & BP_AVOID_MASK != 0 {
+                    midgame_score += AVOID_SQR_VAL;
                 }
 
                 let w_pawn_mask = bitboard.w_pawn;
@@ -204,6 +219,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & WN_PREF_MASK != 0 {
                         midgame_score += PREF_SQR_VAL;
                     }
+                } else if index_mask & WN_AVOID_MASK != 0 {
+                    midgame_score -= AVOID_SQR_VAL;
                 }
             },
             def::BN => {
@@ -215,6 +232,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & BN_PREF_MASK != 0 {
                         midgame_score -= PREF_SQR_VAL;
                     }
+                } else if index_mask & BN_AVOID_MASK != 0 {
+                    midgame_score += AVOID_SQR_VAL;
                 }
             },
 
@@ -227,6 +246,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & WB_PREF_MASK != 0 {
                         midgame_score += PREF_SQR_VAL;
                     }
+                } else if index_mask & WB_AVOID_MASK != 0 {
+                    midgame_score -= AVOID_SQR_VAL;
                 }
             },
             def::BB => {
@@ -238,6 +259,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & BB_PREF_MASK != 0 {
                         midgame_score -= PREF_SQR_VAL;
                     }
+                } else if index_mask & BB_AVOID_MASK != 0 {
+                    midgame_score += AVOID_SQR_VAL;
                 }
             },
 
@@ -250,6 +273,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & WR_PREF_MASK != 0 {
                         midgame_score += PREF_SQR_VAL;
                     }
+                } else if index_mask & WR_AVOID_MASK != 0 {
+                    midgame_score -= AVOID_SQR_VAL;
                 }
 
                 let file_mask = file_masks[index];
@@ -271,6 +296,8 @@ pub fn eval_state(state: &State) -> i32 {
                     if index_mask & BR_PREF_MASK != 0 {
                         midgame_score -= PREF_SQR_VAL;
                     }
+                } else if index_mask & BR_AVOID_MASK != 0 {
+                    midgame_score += AVOID_SQR_VAL;
                 }
 
                 let file_mask = file_masks[index];
@@ -289,6 +316,8 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if index_mask & WQ_COMF_MASK != 0 {
                     midgame_score += COMF_SQR_VAL;
+                } else if index_mask & WQ_AVOID_MASK != 0 {
+                    midgame_score -= AVOID_SQR_VAL;
                 }
 
                 wq_count += 1;
@@ -298,6 +327,8 @@ pub fn eval_state(state: &State) -> i32 {
 
                 if index_mask & BQ_COMF_MASK != 0 {
                     midgame_score -= COMF_SQR_VAL;
+                } else if index_mask & BQ_AVOID_MASK != 0 {
+                    midgame_score += AVOID_SQR_VAL;
                 }
 
                 bq_count += 1;
