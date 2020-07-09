@@ -109,6 +109,11 @@ pub const fn is_p(piece_code: u8) -> bool {
     piece_code & P != 0
 }
 
+#[inline]
+pub const fn square(value: i32) -> i32 {
+    value * value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
